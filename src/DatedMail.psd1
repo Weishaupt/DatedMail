@@ -7,7 +7,7 @@ RootModule = './DatedMail.psm1'
 ModuleVersion = '0.0.1'
 
 # Supported PSEditions
-# CompatiblePSEditions = @()
+CompatiblePSEditions = @("Desktop", "Core")
 
 # ID used to uniquely identify this module
 GUID = 'de9f6fbe-0505-479e-b6ec-914f07d81942'
@@ -25,7 +25,7 @@ Copyright = '(c) Marvin Dickhaus. All rights reserved.'
 Description = 'Manages mail addresses that expire after a set amount of time'
 
 # Minimum version of the PowerShell engine required by this module
-# PowerShellVersion = ''
+PowerShellVersion = '5.0'
 
 # Name of the PowerShell host required by this module
 # PowerShellHostName = ''
