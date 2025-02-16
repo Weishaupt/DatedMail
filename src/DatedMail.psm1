@@ -234,7 +234,7 @@ function Update-DatedMailSieveFilter {
     #if($forwardAddress -notmatch "^$")
 
     [string] $header = @"
-require ["reject","envelope","subaddress"];
+require ["reject","envelope"];
 
 # This is DatedMail PowerShell Script
 # Please don't change anything here.
