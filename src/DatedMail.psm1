@@ -96,14 +96,14 @@ function New-DatedMailAddress {
         [Parameter(Mandatory=$false)]
         [Int64] $DaysToExpire = 10,
         [Parameter(Mandatory=$false, ParameterSetName="File")]
-        [string] $DatedMailExportFilePath = $null,
+        [string] $DatedMailExportFilePath = "",
         [Parameter(Mandatory=$false)]
         [string] $ConfigurationFilePath = $DefaultConfigurationFilePath,
         [Parameter(Mandatory=$false, ParameterSetName="Console")]
         [System.Management.Automation.SwitchParameter]$ReturnMailAddress
     )
 
-    if($null -ne $DatedMailExportFilePath -and (Test-Path -Path $DatedMailExportFilePath -IsValid -PathType Leaf) -eq $false) {
+    if(![String]::IsNullOrWhiteSpace($DatedMailExportFilePath) -and (Test-Path -Path $DatedMailExportFilePath -IsValid -PathType Leaf) -eq $false) {
         Write-Error "The path $DatedMailExportFilePath is invalid. Please provide a valid path and try again."
         throw("Invalid Path")
     }
@@ -135,9 +135,9 @@ function New-DatedMailAddress {
     Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
 
     Write-Debug "Updating the existing configuration"
-    Update-DatedMailAddress -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
+    Update-DatedMailAddress -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference -ForceSieveFilterUpdate
 
-    if($null -ne $DatedMailExportFilePath) {
+    if(![String]::IsNullOrWhiteSpace($DatedMailExportFilePath)) {
         Write-Debug "Exporting email address to $DatedMailExportFilePath"
         try {
             $DatedMail.Address | Out-File -FilePath $DatedMailExportFilePath -WhatIf:$WhatIfPreference -NoNewline -ErrorAction Stop
@@ -172,6 +172,9 @@ This function might update two files:
 The configuration path for the configuration. By default a configuration is written
 to the .config folder in the users home directory at ~/.config/DatedMail/DatedMailConfig.json
 
+.PARAMETER ForceSieveFilterUpdate
+Force updating the Sieve filter file, even if no newly expired mail addresses were identified.
+
 .EXAMPLE
 PS> Update-DatedMailAddress
 
@@ -183,7 +186,9 @@ function Update-DatedMailAddress {
     [OutputType([System.Void])]
     param(
         [Parameter(Mandatory=$false)]
-        [string] $ConfigurationFilePath = $DefaultConfigurationFilePath
+        [string] $ConfigurationFilePath = $DefaultConfigurationFilePath,
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]$ForceSieveFilterUpdate
     )
 
     $config = Import-Configuration -ConfigurationFilePath $ConfigurationFilePath
@@ -210,8 +215,11 @@ function Update-DatedMailAddress {
         [int]$expiredAddresses = $config.Addresses.Count - $addresses.Count
         Write-Verbose "$($expiredAddresses) addresses expired since the last execution. Updating config database and Sieve filter."
         $config.Addresses = $addresses
-        Update-DatedMailSieveFilter -WhatIf:$WhatIfPreference
+        Update-DatedMailSieveFilter -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
         Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
+    } elseif($ForceSieveFilterUpdate) {
+        Write-Verbose "No addresses expired since the last execution. Updating the sieve filter anyways as -ForceSieveFilterUpdate was specified"
+        Update-DatedMailSieveFilter -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
     } else {
         Write-Verbose "No addresses expired. No update required."
     }
@@ -262,6 +270,12 @@ if envelope :is "to" "{0}"
     }
     $writer.Write($footer)
 
+    # Check if path to Sieve file exists, and create it if neccesary
+    $SieveContainerPath = Split-Path -Path $config.SieveFilterPath -Parent
+    if((Test-Path -Path $SieveContainerPath -PathType Container) -eq $false) {
+        New-Item $SieveContainerPath -ItemType Directory -Force -WhatIf:$WhatIfPreference | Out-Null
+    }
+
     $writer.ToString() | Out-File -FilePath $config.SieveFilterPath -WhatIf:$WhatIfPreference
 }
 
@@ -276,14 +290,14 @@ function Import-Configuration {
     if($configFileExists -eq $true) {
         $config = Get-Content -Path $ConfigurationFilePath | ConvertFrom-Json
     } else {
-        $ex = New-Object -TypeName System.ApplicationException -ArgumentList "No configuration file found. Please run Initialize-Configuration first."
+        $ex = New-Object -TypeName System.ApplicationException -ArgumentList "No configuration file found at the given location $($ConfigurationFilePath). Please run Initialize-Configuration or specify the correct location for the configuration file."
         throw($ex)
     }
 
     $isValidConfiguration = Test-Configuration -Configuration $config
 
     if($isValidConfiguration -eq $false) {
-        $AppException = New-Object System.ApplicationException -ArgumentList "Invalid configuration detected from $"
+        $AppException = New-Object System.ApplicationException -ArgumentList "Invalid configuration detected. Check the configuration or run Initialize-Configuration again."
         throw($AppException)
     }
 
@@ -304,7 +318,7 @@ function Test-Configuration {
     }
 
     # Sieve Filter Path
-    if ((Test-Path $Configuration.SieveFilterPath -PathType Leaf) -eq $false) {
+    if ((Test-Path $Configuration.SieveFilterPath -PathType Leaf -IsValid) -eq $false) {
         Write-Error "Path to Sieve filter file could not be validated. Please check and try again."
         return $false
     }
@@ -313,7 +327,7 @@ function Test-Configuration {
     try {
         New-Object -TypeName "MailAddress" -ArgumentList @($Configuration.ForwardingEmailAddress) | Out-Null
     } catch [FormatException] {
-        Write-Error "Invalid forwarding address given: $Configuration.ForwardingEmailAddress"
+        Write-Error "Invalid forwarding address given: $($Configuration.ForwardingEmailAddress)"
         return $false
     }
 
@@ -331,8 +345,10 @@ function Export-Configuration {
         [string] $ConfigurationFilePath
     )
 
-    if($false -eq (Test-Path $DefaultConfigurationFilePath)) {
-        New-Item -Path $DefaultConfigurationFilePath -ItemType Directory -WhatIf:$WhatIfPreference | Out-Null
+    # Check if path to config file exists, and create it if neccesary
+    $ConfigurationContainerPath = Split-Path $ConfigurationFilePath -Parent
+    if((Test-Path $ConfigurationContainerPath -PathType Container) -eq $false) {
+        New-Item -Path $ConfigurationContainerPath -ItemType Directory -Force -WhatIf:$WhatIfPreference | Out-Null
     }
 
     $Configuration | ConvertTo-Json | Out-File -FilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
