@@ -54,21 +54,23 @@ function Initialize-DatedMailConfiguration {
         SieveFilterPath = $SieveFilterPath;
     }
 
-    $isValidConfiguration = Test-Configuration -Configuration $config
+    Test-Configuration -Configuration $config
 
-    if($isValidConfiguration -eq $true) {
-        Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
-    } else {
-        Write-Warning "No configuration was written. Please check the error message and try again."
-    }
+    Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
 }
 
 <#
 .SYNOPSIS
 Adds a new expiring e-mail address to the database
 
-.PARAMETER DaysToExpire
-Specifies how many days the new generated address should be valid for.
+.PARAMETER ValidDays
+Specifies how many days the new generated address should be valid for
+
+.PARAMETER ValidUntil
+Specifies the exact date where the generated address should expire
+
+.PARAMETER ValidTimeSpan
+Specifies an exact timespan from the current date where the address should expire
 
 .PARAMETER DatedMailExportFilePath
 Specifies the path to which to export the new email address. The export
@@ -79,10 +81,10 @@ The configuration path for the configuration. By default a configuration is writ
 to the .config folder in the users home directory at ~/.config/DatedMail/DatedMailConfig.json
 
 .PARAMETER ReturnMailAddress
-Specifies whether the mail address should be returned on STDOUT instead of being written to file.
+Specifies whether the mail address should be returned on STDOUT instead of being written to file
 
 .EXAMPLE
-PS> New-DatedMailAddress -DaysToExpire 7 -DatedMailExportFilePath $env:Home/DatedMail
+PS> New-DatedMailAddress -ValidDays 7 -DatedMailExportFilePath $env:Home/DatedMail
 
 Creates a new mail address valid for exactly 7 days and exports the address to the file
 DatedMail in the users home directory.
@@ -90,22 +92,26 @@ DatedMail in the users home directory.
 #>
 function New-DatedMailAddress {
     [CmdletBinding(SupportsShouldProcess=$true)]
-    [OutputType([void], ParameterSetName="File")]
-    [OutputType([string], ParameterSetName="Console")]
+    [OutputType([string],[System.Void])]
     param (
+        [Parameter(Mandatory=$true, ParameterSetName="Days")]
+        [ValidateRange(1,[Int64]::MaxValue)]
+        [Int64] $ValidDays,
+        [Parameter(Mandatory=$true, ParameterSetName="Date")]
+        [datetime] $ValidUntil,
+        [Parameter(Mandatory=$true, ParameterSetName="Range")]
+        [timespan] $ValidTimeSpan,
         [Parameter(Mandatory=$false)]
-        [Int64] $DaysToExpire = 10,
-        [Parameter(Mandatory=$false, ParameterSetName="File")]
         [string] $DatedMailExportFilePath = "",
         [Parameter(Mandatory=$false)]
-        [string] $ConfigurationFilePath = $DefaultConfigurationFilePath,
-        [Parameter(Mandatory=$false, ParameterSetName="Console")]
-        [System.Management.Automation.SwitchParameter]$ReturnMailAddress
+        [System.Management.Automation.SwitchParameter]$ReturnMailAddress,
+        [Parameter(Mandatory=$false)]
+        [string] $ConfigurationFilePath = $DefaultConfigurationFilePath
     )
 
     if(![String]::IsNullOrWhiteSpace($DatedMailExportFilePath) -and (Test-Path -Path $DatedMailExportFilePath -IsValid -PathType Leaf) -eq $false) {
-        Write-Error "The path $DatedMailExportFilePath is invalid. Please provide a valid path and try again."
-        throw("Invalid Path")
+        $ex = New-Object -TypeName System.IO.FileNotFoundException -ArgumentList "The path $DatedMailExportFilePath is invalid. Please provide a valid path and try again."
+        throw($ex)
     }
 
     #Get Config
@@ -122,9 +128,26 @@ function New-DatedMailAddress {
         $datedAddress += $char
     }
 
+    [datetime]$ExpiryDate = [datetime]::Now
+    if($null -ne $ValidDays -and $ValidDays -gt 0) {
+        $ExpiryDate = $ExpiryDate.AddDays($ValidDays)
+    } elseif ($null -ne $ValidUntil) {
+        $ExpiryDate = $ValidUntil
+    } elseif ($null -ne $ValidTimeSpan) {
+        $ExpiryDate = $ExpiryDate.Add($ValidTimeSpan)
+    } else {
+        $ex = New-Object -TypeName System.ApplicationException -ArgumentList "Unable to calculate the the expiry date."
+        throw($ex)
+    }
+
+    if($ExpiryDate -le [datetime]::Now) {
+        $ex = New-Object -TypeName System.ApplicationException -ArgumentList "The given expiry date is in the past. Validate your input and try again."
+        throw($ex)
+    }
+
     $DatedMail = [PSCustomObject]@{
         Address = $datedAddress;
-        ExpiresOn = [datetime]::Now.AddDays($DaysToExpire).ToString("s")
+        ExpiresOn = $ExpiryDate.ToString("s")
     }
 
     Write-Verbose "Generated address '$($DatedMail.Address)' will expire on $($DatedMail.ExpiresOn)"
@@ -294,45 +317,55 @@ function Import-Configuration {
         throw($ex)
     }
 
-    $isValidConfiguration = Test-Configuration -Configuration $config
-
-    if($isValidConfiguration -eq $false) {
-        $AppException = New-Object System.ApplicationException -ArgumentList "Invalid configuration detected. Check the configuration or run Initialize-Configuration again."
-        throw($AppException)
-    }
+    Test-Configuration -Configuration $config
 
     return $config
 }
 
 function Test-Configuration {
     [CmdletBinding()]
-    [OutputType([bool])]
+    [OutputType([void])]
     param(
         [Parameter(Mandatory=$true)]
         [object[]] $Configuration
     )
     # Prefix
+    if($null -eq $Configuration.MailPrefix -or [String]::IsNullOrWhiteSpace($Configuration.MailPrefix)) {
+        $ex = New-Object -TypeName System.ArgumentException -ArgumentList "Missing MailPrefix attribute in configuration"
+        throw($ex)
+    }
     if($Configuration.MailPrefix -notlike "*+") {
-        Write-Error "Mail Address Prefix must end with '+' to allow for Plus-Adressing"
-        return $false
+        $ex = New-Object -TypeName System.ArgumentException -ArgumentList "Unable to validate configuration`nMail Address Prefix must end with '+' to allow for Plus-Adressing"
+        throw($ex)
     }
 
     # Sieve Filter Path
+    if($null -eq $Configuration.SieveFilterPath -or [String]::IsNullOrWhiteSpace($Configuration.SieveFilterPath)) {
+        $ex = New-Object -TypeName System.ArgumentException -ArgumentList "Missing SieveFilterPath attribute in configuration"
+        throw($ex)
+    }
     if ((Test-Path $Configuration.SieveFilterPath -PathType Leaf -IsValid) -eq $false) {
-        Write-Error "Path to Sieve filter file could not be validated. Please check and try again."
-        return $false
+        $ex = New-Object -TypeName System.IO.IOException -ArgumentList "Unable to validate configuration`nPath to Sieve filter file could not be validated. Please check and try again."
+        throw($ex)
     }
 
     # Forwarding Mail Address
+    if($null -eq $Configuration.ForwardingEmailAddress -or [String]::IsNullOrWhiteSpace($Configuration.ForwardingEmailAddress)) {
+        $ex = New-Object -TypeName System.ArgumentException -ArgumentList "Missing ForwardingEmailAddress attribute in configuration"
+        throw($ex)
+    }
     try {
         New-Object -TypeName "MailAddress" -ArgumentList @($Configuration.ForwardingEmailAddress) | Out-Null
     } catch [FormatException] {
-        Write-Error "Invalid forwarding address given: $($Configuration.ForwardingEmailAddress)"
-        return $false
+        $ex = New-Object -TypeName System.ArgumentException -ArgumentList "Unable to validate configuration`nInvalid forwarding address given: $($Configuration.ForwardingEmailAddress)"
+        throw($ex)
     }
 
-    return $true
-
+    #Addresses
+    if($null -eq $Configuration.Addresses) {
+        $ex = New-Object -TypeName System.ArgumentException -ArgumentList "Missing Addresses attribute in configuration"
+        throw($ex)
+    }
 }
 
 function Export-Configuration {
