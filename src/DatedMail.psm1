@@ -199,7 +199,7 @@ function Update-DatedMailAddress {
     [bool] $UpdateConfigDatabase = $false
 
     [PSCustomObject[]]$addresses = foreach($entry in $config.Addresses) {
-        $expiry = [datetime]::Parse($entry.ExpiresOn)
+        $expiry = $entry.ExpiresOn
         if($expiry -gt $DateNow) {
             Write-Debug "Entry with address '$($entry.Address)' will expire at $($entry.ExpiresOn). Keeping."
             $entry
