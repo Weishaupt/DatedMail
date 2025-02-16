@@ -28,5 +28,5 @@ Ultimately this should reduce spam as mail addresses are only available for a ce
 ```pwsh
 > New-DatedMailAddress -DaysToExpire 7 -DatedMailExportFilePath $env:Home/DatedMail
 ```
-  5. Create a timer to periodically call `Update-DatedMailAddresses` (e.g. hourly). This will remove expired email addreses from the configuration and update the sieve filter accordingly. Thus mails for expired mail addresses will be rejected and bounced back to the sender with the error message `550 Invalid or expired recipient address`.
+  5. Create a timer to periodically call `Update-DatedMailAddress` (e.g. hourly). This will remove expired email addreses from the configuration and update the sieve filter accordingly. Thus mails for expired mail addresses will be rejected and bounced back to the sender with the error message `550 Invalid or expired recipient address`.
 
