@@ -1,5 +1,5 @@
 #region Variables
-[string] $DefaultConfigurationFilePath = Join-Path $env:HOME ".config" "DatedMail" "DatedMailConfig.json"
+[string] $DefaultConfigurationFilePath = Join-Path -Path $env:HOME -ChildPath ".config" -AdditionalChildPath "DatedMail","DatedMailConfig.json"
 
 #endregion Variables
 
@@ -90,7 +90,7 @@ DatedMail in the users home directory.
 
 #>
 function New-DatedMailAddress {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     [OutputType([void], ParameterSetName="File")]
     [OutputType([string], ParameterSetName="Console")]
     param (
@@ -111,7 +111,7 @@ function New-DatedMailAddress {
 
     #Get Config
     $config = Import-Configuration -ConfigurationFilePath $ConfigurationFilePath
-    
+
     $chars = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray()
 
     # Initialize an empty string
@@ -133,21 +133,20 @@ function New-DatedMailAddress {
     $config.Addresses += $DatedMail
 
     Write-Debug "Adding generated address to existing configuration"
-    Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath
+    Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
 
     Write-Debug "Updating the existing configuration"
-    Update-DatedMailAddresses -ConfigurationFilePath $ConfigurationFilePath
+    Update-DatedMailAddress -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
 
     if($null -ne $DatedMailExportFilePath) {
         Write-Debug "Exporting email address to $DatedMailExportFilePath"
         try {
-            $DatedMail.Address | Out-File -FilePath $DatedMailExportFilePath -NoNewline -ErrorAction Stop    
+            $DatedMail.Address | Out-File -FilePath $DatedMailExportFilePath -WhatIf:$WhatIfPreference -NoNewline -ErrorAction Stop
         }
         catch {
             $ex = New-Object -TypeName System.ApplicationException -ArgumentList "Unable to export address to the given file path $DatedMailExportFilePath"
             throw($ex)
         }
-        
     }
 
     if($ReturnMailAddress -eq $true) {
@@ -175,13 +174,13 @@ The configuration path for the configuration. By default a configuration is writ
 to the .config folder in the users home directory at ~/.config/DatedMail/DatedMailConfig.json
 
 .EXAMPLE
-PS> Update-DatedMailAddresses
+PS> Update-DatedMailAddress
 
 Updates the list of allowed mail addresses in the database using the default configuration.
 
 #>
-function Update-DatedMailAddresses {
-    [CmdletBinding()]
+function Update-DatedMailAddress {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     [OutputType([System.Void])]
     param(
         [Parameter(Mandatory=$false)]
@@ -212,8 +211,8 @@ function Update-DatedMailAddresses {
         [int]$expiredAddresses = $config.Addresses.Count - $addresses.Count
         Write-Verbose "$($expiredAddresses) addresses expired since the last execution. Updating config database and Sieve filter."
         $config.Addresses = $addresses
-        Update-DatedMailSieveFilter
-        Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath
+        Update-DatedMailSieveFilter -WhatIf:$WhatIfPreference
+        Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
     } else {
         Write-Verbose "No addresses expired. No update required."
     }
@@ -223,14 +222,12 @@ function Update-DatedMailAddresses {
 
 #region Internal Functions
 function Update-DatedMailSieveFilter {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$false)]
         [string] $ConfigurationFilePath = $DefaultConfigurationFilePath
     )
     $config = Import-Configuration -ConfigurationFilePath $ConfigurationFilePath
-
-    #if($forwardAddress -notmatch "^$")
 
     [string] $header = @"
 require ["reject","envelope"];
@@ -265,11 +262,12 @@ if envelope :is "to" "{0}"
         $writer.Write($template -f @($AddressInfo.Address, $AddressInfo.ExpiresOn, $config.ForwardingEmailAddress))
     }
     $writer.Write($footer)
-    
-    $writer.ToString() | Out-File -FilePath $config.SieveFilterPath
+
+    $writer.ToString() | Out-File -FilePath $config.SieveFilterPath -WhatIf:$WhatIfPreference
 }
 
 function Import-Configuration {
+    [CmdletBinding()]
     [OutputType([PSCustomObject])]
     param(
         [Parameter(Mandatory=$true)]
@@ -294,6 +292,7 @@ function Import-Configuration {
 }
 
 function Test-Configuration {
+    [CmdletBinding()]
     [OutputType([bool])]
     param(
         [Parameter(Mandatory=$true)]
@@ -324,6 +323,7 @@ function Test-Configuration {
 }
 
 function Export-Configuration {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     [OutputType([void])]
     param(
         [Parameter(Mandatory=$true)]
@@ -331,12 +331,12 @@ function Export-Configuration {
         [Parameter(Mandatory=$true)]
         [string] $ConfigurationFilePath
     )
-    
+
     if($false -eq (Test-Path $DefaultConfigurationFilePath)) {
-        New-Item -Path $DefaultConfigurationFilePath -ItemType Directory | Out-Null
+        New-Item -Path $DefaultConfigurationFilePath -ItemType Directory -WhatIf:$WhatIfPreference | Out-Null
     }
 
-    $Configuration | ConvertTo-Json | Out-File -FilePath $ConfigurationFilePath
+    $Configuration | ConvertTo-Json | Out-File -FilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
 }
 
 #endregion Internal Functions

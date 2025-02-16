@@ -4,10 +4,10 @@
 RootModule = './DatedMail.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.0.1'
+ModuleVersion = '0.1.1'
 
 # Supported PSEditions
-CompatiblePSEditions = @("Desktop", "Core")
+CompatiblePSEditions = "Core"
 
 # ID used to uniquely identify this module
 GUID = 'de9f6fbe-0505-479e-b6ec-914f07d81942'
@@ -25,7 +25,7 @@ Copyright = '(c) Marvin Dickhaus. All rights reserved.'
 Description = 'Manages mail addresses that expire after a set amount of time'
 
 # Minimum version of the PowerShell engine required by this module
-PowerShellVersion = '5.0'
+PowerShellVersion = '6.0'
 
 # Name of the PowerShell host required by this module
 # PowerShellHostName = ''
@@ -61,7 +61,7 @@ PowerShellVersion = '5.0'
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = @('Initialize-DatedMailConfiguration', 'New-DatedMailAddress', 'Update-DatedMailAddresses')
+FunctionsToExport = @('Initialize-DatedMailConfiguration', 'New-DatedMailAddress', 'Update-DatedMailAddress')
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
@@ -87,7 +87,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        # Tags = @()
+        Tags = @('PSEdition_Core', 'Linux')
 
         # A URL to the license for this module.
         LicenseUri = 'https://github.com/Weishaupt/DatedMail/blob/main/LICENSE'
