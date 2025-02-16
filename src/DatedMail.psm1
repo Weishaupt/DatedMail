@@ -34,7 +34,7 @@ This example creates a new configuration with the default configuration path.
 
 #>
 function Initialize-DatedMailConfiguration {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     [OutputType([System.Void])]
     param(
         [Parameter(Mandatory=$false)]
@@ -57,11 +57,10 @@ function Initialize-DatedMailConfiguration {
     $isValidConfiguration = Test-Configuration -Configuration $config
 
     if($isValidConfiguration -eq $true) {
-        Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath
+        Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
     } else {
         Write-Warning "No configuration was written. Please check the error message and try again."
     }
-
 }
 
 <#
