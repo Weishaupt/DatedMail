@@ -129,7 +129,7 @@ function New-DatedMailAddress {
 
     Write-Verbose "Generated address '$($DatedMail.Address)' will expire on $($DatedMail.ExpiresOn)"
 
-    $config.Addresses += $DatedMail
+    [object[]] $config.Addresses += $DatedMail
 
     Write-Debug "Adding generated address to existing configuration"
     Export-Configuration -Configuration $config -ConfigurationFilePath $ConfigurationFilePath -WhatIf:$WhatIfPreference
