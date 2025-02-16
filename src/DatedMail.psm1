@@ -44,7 +44,6 @@ function Initialize-DatedMailConfiguration {
         [Parameter(Mandatory=$true)]
         [string] $ForwardingEmailAddress,
         [Parameter(Mandatory=$false)]
-        [ValidateNotNullOrWhiteSpace()]
         [string] $MailAddressPrefix = "temp+"
     )
 
