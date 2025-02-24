@@ -52,10 +52,10 @@ function Initialize-DatedMailConfiguration {
         [string] $MailAddressDomain
     )
 
-    $config = @{
+    [PSCustomObject]$config = @{
         Addresses = @();
         MailPrefix = $MailAddressPrefix;
-        MailDomain = $MailDomain;
+        MailDomain = $MailAddressDomain;
         ForwardingEmailAddress = $ForwardingEmailAddress;
         SieveFilterPath = $SieveFilterPath;
     }
@@ -317,7 +317,7 @@ function Import-Configuration {
     )
     $configFileExists = Test-Path -Path $ConfigurationFilePath -PathType Leaf
     if($configFileExists -eq $true) {
-        $config = Get-Content -Path $ConfigurationFilePath | ConvertFrom-Json
+        [PSCustomObject] $config = Get-Content -Path $ConfigurationFilePath | ConvertFrom-Json
     } else {
         $ex = New-Object -TypeName System.ApplicationException -ArgumentList "No configuration file found at the given location $($ConfigurationFilePath). Please run Initialize-Configuration or specify the correct location for the configuration file."
         throw($ex)
@@ -333,7 +333,7 @@ function Test-Configuration {
     [OutputType([void])]
     param(
         [Parameter(Mandatory=$true)]
-        [object[]] $Configuration
+        [PSCustomObject] $Configuration
     )
     # Prefix
     if($null -eq $Configuration.MailPrefix -or [String]::IsNullOrWhiteSpace($Configuration.MailPrefix)) {
@@ -389,7 +389,7 @@ function Export-Configuration {
     [OutputType([void])]
     param(
         [Parameter(Mandatory=$true)]
-        [object[]] $Configuration,
+        [PSCustomObject] $Configuration,
         [Parameter(Mandatory=$true)]
         [string] $ConfigurationFilePath
     )
